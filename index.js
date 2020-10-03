@@ -1,9 +1,13 @@
 const instance_skel = require('../../instance_skel');
-var unifi = require('node-unifi');
+const unifi = require('node-unifiapi');
+const async = require('async');
 
 class instance extends instance_skel {
 	constructor(system, id, config) {
 		super(system, id, config);
+
+		this.commandQueue = [];
+		this.waiting = false;
 
 		this.actions(); // export actions
 	}
@@ -13,13 +17,31 @@ class instance extends instance_skel {
 
 		this.status(this.STATE_OK);
 
-		this.controller = new unifi.Controller(this.config.host, this.config.port);
+		if (this.controller !== undefined) {
+			this.controller.logout();
+			delete this.controller;
+		}
+		this.controller = unifi({
+			baseUrl: 'https://'+this.config.host+':'+this.config.port, // The URL of the Unifi Controller
+			username: this.config.username,
+			password: this.config.password,
+			//debug: true, // More debug of the API (uses the debug module)
+			//debugNet: true // Debug of the network requests (uses request module)
+		});
 	}
 
 	init() {
 		this.status(this.STATE_OK);
 
-		this.controller = new unifi.Controller(this.config.host, this.config.port);
+		this.controller = unifi({
+			baseUrl: 'https://'+this.config.host+':'+this.config.port, // The URL of the Unifi Controller
+			username: this.config.username,
+			password: this.config.password,
+			//debug: true, // More debug of the API (uses the debug module)
+			//debugNet: true // Debug of the network requests (uses request module)
+		});
+
+		this.startTransmitTimer();
 	}
 
 	config_fields() {
@@ -29,14 +51,13 @@ class instance extends instance_skel {
 				id: 'info',
 				width: 12,
 				label: 'Information',
-				value: 'This module will control switches via UniFi controller.'
+				value: 'This module will control network switches via a UniFi controller.'
 			},
 			{
 				type: 'textinput',
 				id: 'host',
-				label: 'Target IP',
+				label: 'Target IP/Host',
 				width: 12,
-				regex: this.REGEX_IP,
 				required: true
 			},
 			{
@@ -60,18 +81,24 @@ class instance extends instance_skel {
 				id: 'username',
 				label: 'Username',
 				width: 12,
+				required: true
 			},
 			{
 				type: 'textinput',
 				id: 'password',
 				label: 'Password',
 				width: 12,
+				required: true
 			}
 		]
 	}
 
 	destroy() {
 		this.debug("destroy");
+		if(this.controller !== undefined){
+			this.controller.logout();
+		}
+		this.stopTransmitTimer();
 	}
 
 	actions(system) {
@@ -141,146 +168,153 @@ class instance extends instance_skel {
 
 		switch (action.action) {
 			case 'POECycle':
-				this.doPowerCyclePort(opt.site, opt.mac, opt.port);
+				this.commandQueue.push({function:this.PowerCyclePort, args:[opt.site, opt.mac, opt.port]});
 				break;
 			case 'POEMode':
-				this.doPOEMode(opt.site, opt.mac, opt.port, opt.mode);
+				this.commandQueue.push({function:this.changePOEMode, args:[opt.site, opt.mac, opt.port, opt.mode]});
 				break;
 		}
 	}
 
-	doPowerCyclePort(site, mac, port){
-		this.controller.login(this.config.username, this.config.password, function(err) {
+	startTransmitTimer() {
+		var timeout = 100;
 
-			if(err) {
-				if(err == "api.err.Invalid"){
-					this.log('error', 'Username or Password invalid');
+		// Stop the timer if it was already running
+		this.stopTransmitTimer();
+
+		this.log('debug', "Starting transmit timer");
+		// Create a timer to transmit commands to the controller
+		this.transmitTimer = setInterval( async () => {
+			if(!this.waiting){
+				if(this.commandQueue.length > 0){
+					this.waiting = true;
+					let currentCommand = await this.commandQueue.shift();
+					await currentCommand['function'].apply(this, currentCommand['args']);
+					this.waiting = false;
 				}
-				else{
-					this.log('error', 'ERROR: ' + err);
-				}
-				this.status(this.STATE_ERROR);
-				this.controller.logout();
-				return;
 			}
-
-			this.controller.powerCycleSwitchPort(site, mac, port, function(err) {
-				if(err) {
-					if(err == "api.err.NoSiteContext") {
-						this.log('warn', 'Site "'+site+'" does not exist');
-					}
-					else if(err == "api.err.UnknownDevice") {
-						this.log('warn', 'Device "'+mac+'" does not exist');
-					}
-					else if(err == "api.err.InvalidTargetPort") {
-						this.log('warn', 'Port "'+port+'" does not exist');
-					}
-					else {
-						this.log('error', 'ERROR: ' + err);
-					}
-				}
-				this.controller.logout();
-			}.bind(this));
-		}.bind(this));
+		}, timeout);
 	}
 
-	doPOEMode(site, mac, switchPort, poeMode){
-		this.controller.login(this.config.username, this.config.password, function(err) {
-			if(err) {
-				if(err == "api.err.Invalid"){
-					this.log('error', 'Username or Password invalid');
+	stopTransmitTimer() {
+		if (this.transmitTimer !== undefined) {
+			this.log('debug', "Stopping connection timer");
+			clearInterval(this.transmitTimer);
+			delete this.transmitTimer;
+		}
+
+	}
+
+	async PowerCyclePort(site, mac, port){
+		let payload = {mac: mac.toLowerCase(),
+			port_idx:'1',
+			cmd: 'power-cycle'
+		};
+
+		await this.customCommand("/cmd/devmgr", payload, site, 'POST')
+		.then(() =>{
+			this.status(this.STATE_OK);
+			return
+		})
+		.catch((err) => {
+			let msg = "";
+			if(err.meta != undefined){
+				msg = err.meta.msg;
+			}
+			else if(typeof err === 'string'){
+				if(err.includes('ETIMEDOUT') || err.includes('EHOSTDOWN')){
+					msg = 'Host not found';
 				}
 				else{
-					this.log('error', 'ERROR: ' + err);
+					msg = err;
 				}
-				this.status(this.STATE_ERROR);
-				return;
+			}
+			else{
+				msg = err.msg;
 			}
 
-			this.controller.getAccessDevices(site, function(err, device){
-				if(err) {
-					if(err == "api.err.NoSiteContext") {
-						this.log('warn', 'Site "'+site+'" does not exist');
+			this.log('error', 'ERROR: ' + msg);
+			this.status(this.STATE_ERROR);
+		});
+	}
+
+	//async changePOEMode(site, mac, switchPort, poeMode){
+	async changePOEMode(site, mac, switchPort, poeMode){
+		await this.controller.list_aps(mac.toLowerCase(), site)
+		.then((data) => {
+				let devID = data['data'][0]['_id'];
+				let payload = {'port_overrides': data['data'][0]['port_overrides']};
+
+				let found = false;
+				let changed = false;
+				for (let port of payload['port_overrides']){
+					if(port['port_idx'] == switchPort){
+						found = true;
+						if(port['poe_mode'] != poeMode){
+							port['poe_mode'] = poeMode;
+							changed = true;
+						}
+						break;
 					}
-					else if(err == "api.err.UnknownDevice") {
-						this.log('warn', 'Device "'+mac+'" does not exist');
-					}
-					else {
-						this.log('error', 'ERROR: ' + err);
-					}
-					this.controller.logout;
-					return;
 				}
 
-				if(device != undefined){
-					if(device.length > 0){
-						if(device[0] != undefined){
-							if(device[0].length > 0){
-								if(device[0][0] != undefined){
-									if(device[0][0]['_id'] != undefined){
-										let payload = {'port_overrides':device[0][0]['port_overrides']};
-
-										let found = false;
-										for (let port of payload['port_overrides']){
-											if(port['port_idx'] == switchPort){
-												found = true;
-												port['poe_mode'] = poeMode;
-												break;
-											}
-										}
-
-										if(!found){
-											payload['port_overrides'].push(
-												{
-													'port_idx':Number(switchPort),
-													'poe_mode':poeMode
-												}
-											);
-										}
-
-										this.controller.setDeviceSettingsBase(site, device[0][0]['_id'], payload, function(err){
-											if(err) {
-												if(err == "api.err.InvalidPayload"){
-													this.log('warn', 'Port '+ switchPort+' is not valid or does not support POE.');
-												}
-												else{
-													this.log('error', 'ERROR: ' + err);
-												}
-											}
-											this.controller.logout();
-										}.bind(this));
-									}
-									else{
-										this.log('warn', 'Device "'+mac+'" does not exist');
-										this.controller.logout();
-									}
-								}
-								else{
-									this.log('warn', 'Device "'+mac+'" does not exist');
-									this.controller.logout();
-								}
-							}
-							else{
-								this.log('warn', 'Device "'+mac+'" does not exist');
-								this.controller.logout();
-							}
+				if(!found){
+					payload['port_overrides'].push(
+						{
+							'port_idx':Number(switchPort),
+							'poe_mode':poeMode
 						}
-						else{
-							this.log('warn', 'Device "'+mac+'" does not exist');
-							this.controller.logout();
-						}
+					);
+					changed = true;
+				}
+
+				if(changed){
+					return this.customCommand('/rest/device/' + devID, payload, site, 'PUT')
+				}
+				else{
+					return
+				}
+
+			})
+			.then(() => {
+				this.status(this.STATE_OK);
+				return
+			})
+			.catch((err) => {
+				let msg = "";
+				if(err.meta != undefined){
+					msg = err.meta.msg;
+				}
+				else if(typeof err === 'string'){
+					if(err.includes('ETIMEDOUT') || err.includes('EHOSTDOWN')){
+						msg = 'Host not found';
 					}
 					else{
-						this.log('warn', 'Device "'+mac+'" does not exist');
-						this.controller.logout();
+						msg = err;
 					}
 				}
 				else{
-					this.log('warn', 'Device "'+mac+'" does not exist');
-					this.controller.logout();
+					msg = err.msg;
 				}
-			}.bind(this), mac);
-		}.bind(this));
+
+				if(msg == "api.err.NoSiteContext") {
+					this.log('warn', 'Site "'+site+'" does not exist');
+				}
+				else if(msg == "api.err.UnknownDevice") {
+					this.log('warn', 'Device "'+mac+'" does not exist');
+				}
+				else if(msg == "api.err.InvalidPayload"){
+					this.log('warn', 'Invalid parameters');
+				}
+				else{
+					this.log('error', 'ERROR: ' + msg);
+					this.status(this.STATE_ERROR);
+				}
+			});
+	}
+
+	customCommand(path, payload, site = undefined, method) {
+		return this.controller.netsite(path, payload, {}, method, site);
 	}
 }
 exports = module.exports = instance;
