@@ -22,6 +22,6 @@
 	"author": "Todd Murphy <murphytodd4@gmail.com>",
 	"license": "MIT",
 	"dependencies": {
-		"node-unifiapi": "0.0.54"
+		"node-unifi": "^1.3.6"
 	}
 }

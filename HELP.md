@@ -10,6 +10,7 @@ This module will allow you to control the POE mode of ubiquiti UniFi switches.
 
 ### To use the module
 Add an action to a button and choose the action you wish to use.
+NOTE: Commands may not be executed immediately if a large number of update actions are stacked.
 
 **Available actions:**
 * Power Cycle POE Switchport
