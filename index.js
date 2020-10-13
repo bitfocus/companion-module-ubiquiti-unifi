@@ -85,7 +85,7 @@ class instance extends instance_skel {
 	destroy() {
 		this.debug("destroy");
 		if(this.controller !== undefined){
-			this.logout();
+			this.doLogout();
 		}
 		this.stopTransmitTimer();
 	}
