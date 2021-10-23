@@ -320,20 +320,15 @@ class instance extends instance_skel {
 			let timeoutTimer = setTimeout(() => {
 				reject("Host_Timeout");
 			}, this.hostTimeout);
-			this.log("warn", "trying making request")
 			this.controller.customApiRequest(site, "/api/s/<SITE>/rest/portconf", function(err, data){
 				if(err) {
-					this.log("warn", "request failed")
 					clearInterval(timeoutTimer);
 					reject(err);
 				}
 				else{
-					this.log("warn", "more")
 					data.forEach(site => {
 						site.forEach(profile_entry => {
-							console.log("Object Site: %s", profile_entry["name"]);
 							if(profile_entry["name"] == profile){
-								console.log("Object: %j", profile_entry);
 								resolve(profile_entry);
 							}
 						})
@@ -345,20 +340,16 @@ class instance extends instance_skel {
 	}
 
 	doSetPortProfileConfig(site, profile_id, obj) {
-		console.log("Testing set")
 		return new Promise((resolve, reject) => {
 			let timeoutTimer = setTimeout(() => {
 				reject("Host_Timeout");
 			}, this.hostTimeout);
-			this.log("warn", "trying making request")
 			this.controller.customApiRequest(site, "/api/s/<SITE>/rest/portconf/"+profile_id, function(err, data){
 				if(err) {
-					this.log("warn", "update request failed")
 					clearInterval(timeoutTimer);
 					reject(err);
 				}
 				else{
-					this.log("warn", "success")
 					resolve();
 				}
 			}.bind(this), "PUT", obj);
@@ -457,17 +448,11 @@ class instance extends instance_skel {
 			'profile':profile,
 			'poeMode':poeMode
 		}
-		this.log("warn", "trying stuff")
 		await this.dologin().then(() => {
 			return this.doGetPortProfileConfig(site, profile)
 		}).then( (vars) => {
-			console.log("returned after fetching config")
-			console.log("test %s", vars)
 			vars["poe_mode"] = poeMode
-			console.log("About to dispatch")
-			console.log("Updated config %s", vars)
 			this.doSetPortProfileConfig(site, vars["_id"], vars)
-			// resolve({});
 			return ({})
 
 		}).then(() => {
@@ -502,6 +487,9 @@ class instance extends instance_skel {
 		else if((err == "api.err.InvalidPayload") || (err == "api.err.InvalidTargetPort")) {
 			this.log('warn', 'Port "'+attributes['switchPort']+'" does not exist or POE is not currently active on it');
 		}
+		else if(err == "api.err.UnknownProfile") {
+			this.log('warn', 'Port Profile ' + attributes['profile']+ ' not found');
+		} 
 		else if(err == 'Host_Timeout'){
 			this.log('error', 'ERROR: Host Timedout');
 			this.status(this.STATE_ERROR);
