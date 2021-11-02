@@ -147,6 +147,33 @@ class instance extends instance_skel {
 						]
 					}
 				]
+			},
+			'ProfilePOEMode': {
+				label: 'Profile POE Mode',
+				options: [
+					{
+						type: 'textinput',
+						label: 'Site',
+						id: 'site',
+						default: 'default'
+					},
+					{
+						type: 'textinput',
+						label: 'Profile Name',
+						id: 'profile',
+						default: ''
+					},
+					{
+						type: 'dropdown',
+						label: 'Mode',
+						id: 'mode',
+						choices: [
+							{id: 'auto', label: 'Auto'},
+							{id: 'pasv24', label: '24V Passive'},
+							{id: 'off', label: 'Off'}
+						]
+					}
+				]
 			}
 		});
 	}
@@ -161,6 +188,9 @@ class instance extends instance_skel {
 				break;
 			case 'POEMode':
 				this.commandQueue.push({function:this.changePOEMode, args:[opt.site, opt.mac, opt.port, opt.mode]});
+				break;
+			case 'ProfilePOEMode':
+				this.commandQueue.push({function:this.changePortProfilePOEMode, args:[opt.site, opt.profile, opt.mode]});
 				break;
 		}
 	}
@@ -285,6 +315,47 @@ class instance extends instance_skel {
 		});
 	}
 
+	doGetPortProfileConfig(site, profile) {
+		return new Promise((resolve, reject) => {
+			let timeoutTimer = setTimeout(() => {
+				reject("Host_Timeout");
+			}, this.hostTimeout);
+			this.controller.customApiRequest(site, "/api/s/<SITE>/rest/portconf", function(err, data){
+				if(err) {
+					clearInterval(timeoutTimer);
+					reject(err);
+				}
+				else{
+					data.forEach(site => {
+						site.forEach(profile_entry => {
+							if(profile_entry["name"] == profile){
+								resolve(profile_entry);
+							}
+						})
+					})
+					reject('api.err.UnknownProfile');
+				}
+			}.bind(this));
+		});
+	}
+
+	doSetPortProfileConfig(site, profile_id, obj) {
+		return new Promise((resolve, reject) => {
+			let timeoutTimer = setTimeout(() => {
+				reject("Host_Timeout");
+			}, this.hostTimeout);
+			this.controller.customApiRequest(site, "/api/s/<SITE>/rest/portconf/"+profile_id, function(err, data){
+				if(err) {
+					clearInterval(timeoutTimer);
+					reject(err);
+				}
+				else{
+					resolve();
+				}
+			}.bind(this), "PUT", obj);
+		});
+	}
+
 	setDeviceSettings(site, id, portOverrides) {
 		return new Promise((resolve, reject) => {
 			let timeoutTimer = setTimeout(() => {
@@ -371,6 +442,33 @@ class instance extends instance_skel {
 		});
 	}
 
+	async changePortProfilePOEMode(site, profile, poeMode){
+		let attributes = {
+			'site':site,
+			'profile':profile,
+			'poeMode':poeMode
+		}
+		await this.dologin().then(() => {
+			return this.doGetPortProfileConfig(site, profile)
+		}).then( (vars) => {
+			vars["poe_mode"] = poeMode
+			this.doSetPortProfileConfig(site, vars["_id"], vars)
+			return ({})
+
+		}).then(() => {
+			this.status(this.OK);
+			return;
+		}).catch((err) => {
+			this.handleErrors(err, attributes);
+
+		});
+
+		await this.doLogout().catch((err) => {
+			this.handleErrors(err, attributes);
+			return;
+		});
+	}
+
 	handleErrors(err, attributes) {
 		if(err == "api.err.Invalid"){
 			this.log('error', 'Username or Password invalid');
@@ -389,6 +487,9 @@ class instance extends instance_skel {
 		else if((err == "api.err.InvalidPayload") || (err == "api.err.InvalidTargetPort")) {
 			this.log('warn', 'Port "'+attributes['switchPort']+'" does not exist or POE is not currently active on it');
 		}
+		else if(err == "api.err.UnknownProfile") {
+			this.log('warn', 'Port Profile ' + attributes['profile']+ ' not found');
+		} 
 		else if(err == 'Host_Timeout'){
 			this.log('error', 'ERROR: Host Timedout');
 			this.status(this.STATE_ERROR);
