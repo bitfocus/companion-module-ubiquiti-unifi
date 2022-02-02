@@ -23,5 +23,13 @@
 	"license": "MIT",
 	"dependencies": {
 		"node-unifi": "^1.3.6"
+	},
+	"homepage": "https://github.com/bitfocus/companion-module-ubiquiti-unifi#readme",
+	"bugs": {
+		"url": "https://github.com/bitfocus/companion-module-ubiquiti-unifi/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/bitfocus/companion-module-ubiquiti-unifi.git"
 	}
 }
