@@ -22,7 +22,7 @@
 	"author": "Todd Murphy <murphytodd4@gmail.com>",
 	"license": "MIT",
 	"dependencies": {
-		"node-unifi": "^1.3.6"
+		"node-unifi": "https://github.com/starsolutions/node-unifi#1.4.4"
 	},
 	"homepage": "https://github.com/bitfocus/companion-module-ubiquiti-unifi#readme",
 	"bugs": {
