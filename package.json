@@ -1,6 +1,6 @@
 {
 	"name": "ubiquiti-unifi",
-	"version": "1.0.3",
+	"version": "1.0.4",
 	"legacy": [
 		"unifi"
 	],
