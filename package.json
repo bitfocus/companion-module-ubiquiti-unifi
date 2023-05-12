@@ -1,35 +1,20 @@
 {
 	"name": "ubiquiti-unifi",
-	"version": "1.0.4",
-	"legacy": [
-		"unifi"
-	],
-	"api_version": "1.0.0",
-	"keywords": [
-		"Networking"
-	],
-	"manufacturer": "Ubiquiti",
-	"product": [
-		"Unifi",
-		"USW"
-	],
-	"shortname": "unifi",
-	"description": "Module to control UniFi network equipment",
+	"version": "2.0.0",
 	"main": "index.js",
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
-	"author": "Todd Murphy <murphytodd4@gmail.com>",
 	"license": "MIT",
 	"dependencies": {
+		"@companion-module/base": "~1.4.1",
 		"node-unifi": "https://github.com/starsolutions/node-unifi#1.4.4"
-	},
-	"homepage": "https://github.com/bitfocus/companion-module-ubiquiti-unifi#readme",
-	"bugs": {
-		"url": "https://github.com/bitfocus/companion-module-ubiquiti-unifi/issues"
 	},
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/bitfocus/companion-module-ubiquiti-unifi.git"
+	},
+	"devDependencies": {
+		"@companion-module/tools": "^1.2.0"
 	}
 }
