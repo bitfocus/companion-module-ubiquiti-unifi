@@ -1,6 +1,6 @@
 {
 	"name": "ubiquiti-unifi",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
@@ -18,7 +18,7 @@
 		"url": "git+https://github.com/bitfocus/companion-module-ubiquiti-unifi.git"
 	},
 	"devDependencies": {
-		"@companion-module/tools": "^1.2.0"
+		"@companion-module/tools": "^1.2.1"
 	},
 	"prettier": "@companion-module/tools/.prettierrc.json"
 }
