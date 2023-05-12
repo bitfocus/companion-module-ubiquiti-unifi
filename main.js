@@ -5,6 +5,7 @@ import unifi from 'node-unifi'
 import pQueue from 'p-queue'
 import { getActionDefinitions } from './actions.js'
 import { getConfigFields } from './config.js'
+import { UpgradeScripts } from './upgrades.js'
 
 export class UnifiInstance extends InstanceBase {
 	queue = new pQueue({
@@ -94,8 +95,8 @@ export class UnifiInstance extends InstanceBase {
 			port: this.config.port,
 			username: this.config.username,
 			password: this.config.password,
-			sslverify: false, // TODO - make config
-			// TODO - move site here?
+			sslverify: !!this.config.sslverify,
+			site: this.config.site,
 		})
 
 		this.#doLogin()
@@ -111,16 +112,14 @@ export class UnifiInstance extends InstanceBase {
 	}
 
 	/**
-	 * @param {string} site
 	 * @param {string} switch_mac
 	 * @param {number} port_idx
 	 */
-	async doPowerCyclePort(site, switch_mac, port_idx) {
+	async doPowerCyclePort(switch_mac, port_idx) {
 		if (!this.controller) throw new Error('Not initialised')
 		if (!this.loggedIn) throw new Error('Not logged in')
 
 		try {
-			// TODO - site
 			await this.controller.powerCycleSwitchPort(switch_mac, port_idx)
 		} catch (e) {
 			this.handleErrors(e, `Power cycle port ${switch_mac}@${port_idx}`)
@@ -128,16 +127,13 @@ export class UnifiInstance extends InstanceBase {
 	}
 
 	/**
-	 * @param {string} site
 	 * @param {string} switch_mac
 	 * @param {number} port_idx
 	 * @param {string} poe_mode
 	 */
-	async changePortPOEMode(site, switch_mac, port_idx, poe_mode) {
+	async changePortPOEMode(switch_mac, port_idx, poe_mode) {
 		if (!this.controller) throw new Error('Not initialised')
 		if (!this.loggedIn) throw new Error('Not logged in')
-
-		// TODO - site
 
 		try {
 			const device = (await this.controller.getAccessDevices(switch_mac))[0]
@@ -165,15 +161,12 @@ export class UnifiInstance extends InstanceBase {
 	}
 
 	/**
-	 * @param {string} site
 	 * @param {string} profile_name
 	 * @param {string} poe_mode
 	 */
-	async changePortProfilePOEMode(site, profile_name, poe_mode) {
+	async changePortProfilePOEMode(profile_name, poe_mode) {
 		if (!this.controller) throw new Error('Not initialised')
 		if (!this.loggedIn) throw new Error('Not logged in')
-
-		// TODO - site
 
 		try {
 			const portProfileConfigs = await this.controller.getPortConfig()
@@ -221,4 +214,4 @@ export class UnifiInstance extends InstanceBase {
 	}
 }
 
-runEntrypoint(UnifiInstance, [])
+runEntrypoint(UnifiInstance, UpgradeScripts)

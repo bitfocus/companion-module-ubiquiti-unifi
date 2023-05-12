@@ -11,12 +11,6 @@ export function getActionDefinitions(self) {
 			options: [
 				{
 					type: 'textinput',
-					label: 'Site',
-					id: 'site',
-					default: 'default',
-				},
-				{
-					type: 'textinput',
 					label: 'Switch Mac Address',
 					id: 'mac',
 					default: '',
@@ -32,19 +26,13 @@ export function getActionDefinitions(self) {
 			],
 			callback: async (action) => {
 				await self.queue.add(async () => {
-					await self.doPowerCyclePort(action.options.site + '', action.options.mac + '', Number(action.options.port))
+					await self.doPowerCyclePort(action.options.mac + '', Number(action.options.port))
 				})
 			},
 		},
 		POEMode: {
 			name: 'Switchport POE Mode',
 			options: [
-				{
-					type: 'textinput',
-					label: 'Site',
-					id: 'site',
-					default: 'default',
-				},
 				{
 					type: 'textinput',
 					label: 'Switch Mac Address',
@@ -73,24 +61,13 @@ export function getActionDefinitions(self) {
 			],
 			callback: async (action) => {
 				await self.queue.add(async () => {
-					await self.changePortPOEMode(
-						action.options.site + '',
-						action.options.mac + '',
-						Number(action.options.port),
-						action.options.mode + ''
-					)
+					await self.changePortPOEMode(action.options.mac + '', Number(action.options.port), action.options.mode + '')
 				})
 			},
 		},
 		ProfilePOEMode: {
 			name: 'Profile POE Mode',
 			options: [
-				{
-					type: 'textinput',
-					label: 'Site',
-					id: 'site',
-					default: 'default',
-				},
 				{
 					type: 'textinput',
 					label: 'Profile Name',
@@ -111,11 +88,7 @@ export function getActionDefinitions(self) {
 			],
 			callback: async (action) => {
 				await self.queue.add(async () => {
-					await self.changePortProfilePOEMode(
-						action.options.site + '',
-						action.options.profile + '',
-						action.options.mode + ''
-					)
+					await self.changePortProfilePOEMode(action.options.profile + '', action.options.mode + '')
 				})
 			},
 		},
