@@ -20,6 +20,15 @@ export class UnifiInstance extends InstanceBase {
 	 */
 	connectionCheckTimer
 
+	/**
+	 * @type {import('@companion-module/base').DropdownChoice[]}
+	 */
+	portProfileOptions = []
+	/**
+	 * @type {import('@companion-module/base').DropdownChoice[]}
+	 */
+	switchMacAddressOptions = []
+
 	getConfigFields() {
 		return getConfigFields()
 	}
@@ -60,10 +69,12 @@ export class UnifiInstance extends InstanceBase {
 		// TODO - make sure the result is for the same credentials as when it was fired
 		this.controller
 			.login()
-			.then((ok) => {
+			.then(() => {
 				this.loggedIn = true
 
 				this.updateStatus(InstanceStatus.Ok)
+
+				this.#refreshActionInfo().catch(() => null)
 			})
 			.catch((e) => {
 				this.loggedIn = false
@@ -74,6 +85,34 @@ export class UnifiInstance extends InstanceBase {
 			.finally(() => {
 				this.#loginRunning = false
 			})
+	}
+
+	async #refreshActionInfo() {
+		if (!this.controller) return
+
+		try {
+			const portProfileConfigs = await this.controller.getPortConfig()
+
+			this.portProfileOptions = portProfileConfigs.map((profile) => ({
+				id: profile.name,
+				label: profile.name,
+			}))
+		} catch (e) {
+			this.log('warn', `Failed to load port profile list: ${e?.message ?? e}`)
+		}
+
+		try {
+			const devicesBasic = await this.controller.getAccessDevicesBasic()
+
+			this.switchMacAddressOptions = devicesBasic.map((device) => ({
+				id: device.mac,
+				label: `${device.name} (${device.mac})`,
+			}))
+		} catch (e) {
+			this.log('warn', `Failed to load port profile list: ${e?.message ?? e}`)
+		}
+
+		this.setActionDefinitions(getActionDefinitions(this))
 	}
 
 	async configUpdated(config) {
@@ -89,6 +128,9 @@ export class UnifiInstance extends InstanceBase {
 
 			delete this.controller
 		}
+
+		this.portProfileOptions = []
+		this.switchMacAddressOptions = []
 
 		this.controller = new unifi.Controller({
 			host: this.config.host,

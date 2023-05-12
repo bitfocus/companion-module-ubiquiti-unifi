@@ -7,13 +7,15 @@
 export function getActionDefinitions(self) {
 	return {
 		POECycle: {
-			name: 'Power Cycle POE Switchport',
+			name: 'Switchport: Power Cycle',
 			options: [
 				{
-					type: 'textinput',
+					type: 'dropdown',
 					label: 'Switch Mac Address',
 					id: 'mac',
 					default: '',
+					allowCustom: true,
+					choices: self.switchMacAddressOptions,
 				},
 				{
 					type: 'number',
@@ -31,13 +33,15 @@ export function getActionDefinitions(self) {
 			},
 		},
 		POEMode: {
-			name: 'Switchport POE Mode',
+			name: 'Switchport: Set POE mode',
 			options: [
 				{
-					type: 'textinput',
+					type: 'dropdown',
 					label: 'Switch Mac Address',
 					id: 'mac',
 					default: '',
+					allowCustom: true,
+					choices: self.switchMacAddressOptions,
 				},
 				{
 					type: 'number',
@@ -66,13 +70,15 @@ export function getActionDefinitions(self) {
 			},
 		},
 		ProfilePOEMode: {
-			name: 'Profile POE Mode',
+			name: 'Profile: Set POE Mode',
 			options: [
 				{
-					type: 'textinput',
+					type: 'dropdown',
 					label: 'Profile Name',
 					id: 'profile',
 					default: '',
+					allowCustom: true,
+					choices: self.portProfileOptions,
 				},
 				{
 					type: 'dropdown',
