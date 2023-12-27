@@ -1,6 +1,6 @@
 {
 	"name": "ubiquiti-unifi",
-	"version": "2.0.1",
+	"version": "2.0.2",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
@@ -10,7 +10,7 @@
 	"license": "MIT",
 	"dependencies": {
 		"@companion-module/base": "~1.4.1",
-		"node-unifi": "github:julusian/node-unifi#04c6a75e7adaa5a38a9eff4e7bb4a1a5dac2fdea",
+		"node-unifi": "^2.5.1",
 		"p-queue": "^7.3.4"
 	},
 	"repository": {
