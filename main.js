@@ -137,6 +137,7 @@ export class UnifiInstance extends InstanceBase {
 			port: this.config.port,
 			username: this.config.username,
 			password: this.config.password,
+			token2FA: this.config.token2FA,
 			sslverify: !!this.config.sslverify,
 			site: this.config.site,
 		})

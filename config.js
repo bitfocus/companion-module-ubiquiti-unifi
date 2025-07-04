@@ -60,6 +60,16 @@ export function getConfigFields() {
 			required: true,
 		},
 		{
+			type: 'number',
+			id: 'token2FA',
+			label: '2FA Token',
+			width: 6,
+			min: 0,
+			max: 999999,
+			default: 0,
+			required: false,
+		},
+		{
 			type: 'textinput',
 			label: 'Site',
 			id: 'site',
