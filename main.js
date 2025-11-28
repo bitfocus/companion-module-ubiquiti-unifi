@@ -79,7 +79,8 @@ export class UnifiInstance extends InstanceBase {
 			.catch((e) => {
 				this.loggedIn = false
 
-				// TODO - pass error message
+				this.log('error', `Login failed: ${e?.message ?? e}`)
+
 				this.updateStatus(InstanceStatus.ConnectionFailure)
 			})
 			.finally(() => {
@@ -233,7 +234,7 @@ export class UnifiInstance extends InstanceBase {
 				'/api/s/<SITE>/rest/portconf/' + profileConfig._id,
 				// @ts-ignore
 				'PUT',
-				profileConfig
+				profileConfig,
 			)
 		} catch (e) {
 			this.handleErrors(e, `Change port profile POE mode ${profile_name}`)
@@ -270,8 +271,11 @@ export class UnifiInstance extends InstanceBase {
 			const wifiNetworks = await this.controller.getWLanSettings()
 			const wifiNetwork = wifiNetworks.find((n) => n.name == wifiNetworkName)
 			if (!wifiNetwork) throw new Error('WiFi Network not found')
-			
-			this.log('debug', `Updating WiFi Network ${wifiNetworkName} with ID ${wifiNetwork._id} with updates: ${JSON.stringify(updates)}`)
+
+			this.log(
+				'debug',
+				`Updating WiFi Network ${wifiNetworkName} with ID ${wifiNetwork._id} with updates: ${JSON.stringify(updates)}`,
+			)
 			await this.controller.setWLanSettingsBase(wifiNetwork._id, updates)
 		} catch (e) {
 			this.handleErrors(e, `updateWifiNetwork ${wifiNetworkName}`)
@@ -289,8 +293,7 @@ export class UnifiInstance extends InstanceBase {
 
 			this.log('debug', `Deleting WiFi Network ${wifiNetworkName} with ID ${wifiNetwork._id}`)
 			//await this.controller.deleteWLan(wifiNetwork._id) // seems to have mixed up method and payload
-			await this.controller.customApiRequest(
-				'/api/s/<SITE>/rest/wlanconf/' + wifiNetwork._id.trim(), 'DELETE')
+			await this.controller.customApiRequest('/api/s/<SITE>/rest/wlanconf/' + wifiNetwork._id.trim(), 'DELETE')
 		} catch (e) {
 			this.handleErrors(e, `deleteWLan ${wifiNetworkName}`)
 		}

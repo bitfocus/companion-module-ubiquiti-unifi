@@ -159,7 +159,7 @@ export function getActionDefinitions(self) {
 					//self.log('debug', `Action Options: ${JSON.stringify(action.options)}`)
 					let payload = {}
 					switch (action.options.action) {
-						case 'changeSSID':
+						case 'changeSSID': {
 							const newSsid = await self.parseVariablesInString(action.options.newSsid + '')
 							if (newSsid.length == 0) {
 								self.log('error', `SSID cannot be empty`)
@@ -171,7 +171,8 @@ export function getActionDefinitions(self) {
 							await self.refreshActionInfo().catch(() => null)
 							// in future we might want to update action options too
 							break
-						case 'changePassword':
+						}
+						case 'changePassword': {
 							const newPassword = await self.parseVariablesInString(action.options.newPassword + '')
 							if (newPassword.length < 8) {
 								self.log('error', `Password must be at least 8 characters long`)
@@ -181,12 +182,14 @@ export function getActionDefinitions(self) {
 							payload = { x_passphrase: newPassword }
 							await self.updateWifiNetwork(action.options.wifiNetwork + '', payload)
 							break
-						case 'changeState':
+						}
+						case 'changeState': {
 							const enable = action.options.state + '' === 'true'
 							self.log('debug', `${enable ? 'Enable' : 'Disable'} WiFi Network ${action.options.wifiNetwork}`)
 							payload = { enabled: enable }
 							await self.updateWifiNetwork(action.options.wifiNetwork + '', payload)
 							break
+						}
 						case 'deleteNetwork':
 							self.log('debug', `Deleting WiFi Network ${action.options.wifiNetwork}`)
 							await self.deleteWLan(action.options.wifiNetwork + '')
