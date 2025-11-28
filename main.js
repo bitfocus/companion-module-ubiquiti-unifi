@@ -74,7 +74,7 @@ export class UnifiInstance extends InstanceBase {
 
 				this.updateStatus(InstanceStatus.Ok)
 
-				this.#refreshActionInfo().catch(() => null)
+				this.refreshActionInfo().catch(() => null)
 			})
 			.catch((e) => {
 				this.loggedIn = false
@@ -87,7 +87,7 @@ export class UnifiInstance extends InstanceBase {
 			})
 	}
 
-	async #refreshActionInfo() {
+	async refreshActionInfo() {
 		if (!this.controller) return
 
 		try {
@@ -110,6 +110,16 @@ export class UnifiInstance extends InstanceBase {
 			}))
 		} catch (e) {
 			this.log('warn', `Failed to load port profile list: ${e?.message ?? e}`)
+		}
+
+		try {
+			const wifiNetworks = await this.getWifiNetworks()
+			this.wifiNetworkOptions = (wifiNetworks ?? []).map((network) => ({
+				id: network.name,
+				label: network.name,
+			}))
+		} catch (e) {
+			this.log('warn', `Failed to load wifi network list: ${e?.message ?? e}`)
 		}
 
 		this.setActionDefinitions(getActionDefinitions(this))
@@ -227,6 +237,62 @@ export class UnifiInstance extends InstanceBase {
 			)
 		} catch (e) {
 			this.handleErrors(e, `Change port profile POE mode ${profile_name}`)
+		}
+	}
+
+	/**
+	 */
+	async getWifiNetworks() {
+		if (!this.controller) throw new Error('Not initialised')
+		if (!this.loggedIn) throw new Error('Not logged in')
+
+		try {
+			const wifiNetworks = await this.controller.getWLanSettings()
+
+			this.log('debug', 'Fetched wifi networks: ' + wifiNetworks.map((n) => n.name).join(', '))
+			//console.log('Wifi networks data: ' + JSON.stringify(wifiNetworks))
+			return wifiNetworks
+		} catch (e) {
+			this.handleErrors(e, `getWifiNetworks`)
+		}
+	}
+
+	/**
+	 * https://github.com/uchkunrakhimow/unifi-best-practices?tab=readme-ov-file#%EF%B8%8F-network-configuration
+	 * https://github.com/jens-maus/node-unifi/blob/master/unifi.js
+	 * @param {string} wifiNetworkName
+	 * @param {{name?:string,x_passphrase?:string}} updates
+	 */
+	async updateWifiNetwork(wifiNetworkName, updates) {
+		if (!this.controller) throw new Error('Not initialised')
+		if (!this.loggedIn) throw new Error('Not logged in')
+		try {
+			const wifiNetworks = await this.controller.getWLanSettings()
+			const wifiNetwork = wifiNetworks.find((n) => n.name == wifiNetworkName)
+			if (!wifiNetwork) throw new Error('WiFi Network not found')
+			
+			this.log('debug', `Updating WiFi Network ${wifiNetworkName} with ID ${wifiNetwork._id} with updates: ${JSON.stringify(updates)}`)
+			await this.controller.setWLanSettingsBase(wifiNetwork._id, updates)
+		} catch (e) {
+			this.handleErrors(e, `updateWifiNetwork ${wifiNetworkName}`)
+		}
+	}
+
+	/**
+	 * @param {string} wifiNetworkName
+	 */
+	async deleteWLan(wifiNetworkName) {
+		try {
+			const wifiNetworks = await this.controller.getWLanSettings()
+			const wifiNetwork = wifiNetworks.find((n) => n.name == wifiNetworkName)
+			if (!wifiNetwork) throw new Error('WiFi Network not found')
+
+			this.log('debug', `Deleting WiFi Network ${wifiNetworkName} with ID ${wifiNetwork._id}`)
+			//await this.controller.deleteWLan(wifiNetwork._id) // seems to have mixed up method and payload
+			await this.controller.customApiRequest(
+				'/api/s/<SITE>/rest/wlanconf/' + wifiNetwork._id.trim(), 'DELETE')
+		} catch (e) {
+			this.handleErrors(e, `deleteWLan ${wifiNetworkName}`)
 		}
 	}
 
