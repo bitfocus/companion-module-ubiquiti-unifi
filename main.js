@@ -7,6 +7,9 @@ import { getActionDefinitions } from './actions.js'
 import { getConfigFields } from './config.js'
 import { UpgradeScripts } from './upgrades.js'
 
+/**
+ * @extends {InstanceBase<any, any>}
+ */
 export class UnifiInstance extends InstanceBase {
 	queue = new pQueue({
 		concurrency: 1,
@@ -16,14 +19,18 @@ export class UnifiInstance extends InstanceBase {
 
 	connectionCheckInterval = 10000 // Note: this must be more than the timeout used in node-unifi
 	/**
-	 * @type {NodeJS.Timer}
+	 * @type {NodeJS.Timeout | undefined}
 	 */
-	connectionCheckTimer
+	connectionCheckTimer = undefined
 
 	/**
 	 * @type {import('@companion-module/base').DropdownChoice[]}
 	 */
 	portProfileOptions = []
+	/**
+	 * @type {import('@companion-module/base').DropdownChoice[]}
+	 */
+	wifiNetworkOptions = []
 	/**
 	 * @type {import('@companion-module/base').DropdownChoice[]}
 	 */
@@ -33,6 +40,9 @@ export class UnifiInstance extends InstanceBase {
 		return getConfigFields()
 	}
 
+	/**
+	 * @param {any} config
+	 */
 	async init(config) {
 		this.config = config
 
@@ -46,7 +56,7 @@ export class UnifiInstance extends InstanceBase {
 			if (this.controller) {
 				if (this.loggedIn) {
 					// Arbitrary call to check authentication
-					this.controller._ensureLoggedIn().catch((e) => {
+					this.controller.getSelf().catch((e) => {
 						this.loggedIn = false
 
 						this.log('error', `Status check failed: ${e?.message ?? e}`)
@@ -99,7 +109,7 @@ export class UnifiInstance extends InstanceBase {
 				label: profile.name,
 			}))
 		} catch (e) {
-			this.log('warn', `Failed to load port profile list: ${e?.message ?? e}`)
+			this.log('warn', `Failed to load port profile list: ${e instanceof Error ? e.message : e}`)
 		}
 
 		try {
@@ -110,7 +120,7 @@ export class UnifiInstance extends InstanceBase {
 				label: `${device.name} (${device.mac})`,
 			}))
 		} catch (e) {
-			this.log('warn', `Failed to load port profile list: ${e?.message ?? e}`)
+			this.log('warn', `Failed to load device list: ${e instanceof Error ? e.message : e}`)
 		}
 
 		try {
@@ -120,13 +130,13 @@ export class UnifiInstance extends InstanceBase {
 				label: network.name,
 			}))
 		} catch (e) {
-			this.log('warn', `Failed to load wifi network list: ${e?.message ?? e}`)
+			this.log('warn', `Failed to load wifi network list: ${e instanceof Error ? e.message : e}`)
 		}
 
 		this.setActionDefinitions(getActionDefinitions(this))
 	}
 
-	async configUpdated(config) {
+	async configUpdated(config = {}) {
 		this.config = config
 
 		this.updateStatus(InstanceStatus.Connecting)
@@ -195,10 +205,10 @@ export class UnifiInstance extends InstanceBase {
 			if (!device.port_overrides || !device._id) throw new Error('Device invalid')
 
 			const deviceId = device._id
-			const portOverrides = device.port_overrides
+			const portOverrides = [...device.port_overrides]
 
 			// TODO - can this be more granular?
-			const selectedPort = portOverrides.find((port) => port.port_idx == port_idx)
+			const selectedPort = portOverrides.find((port) => port.port_idx === port_idx)
 			if (selectedPort) {
 				selectedPort.poe_mode = poe_mode
 			} else {
@@ -286,6 +296,8 @@ export class UnifiInstance extends InstanceBase {
 	 * @param {string} wifiNetworkName
 	 */
 	async deleteWLan(wifiNetworkName) {
+		if (!this.controller) throw new Error('Not initialised')
+		if (!this.loggedIn) throw new Error('Not logged in')
 		try {
 			const wifiNetworks = await this.controller.getWLanSettings()
 			const wifiNetwork = wifiNetworks.find((n) => n.name == wifiNetworkName)
@@ -300,7 +312,7 @@ export class UnifiInstance extends InstanceBase {
 	}
 
 	/**
-	 * @param {Error} err
+	 * @param {unknown} err
 	 * @param {string} context
 	 */
 	handleErrors(err, context) {
@@ -321,7 +333,7 @@ export class UnifiInstance extends InstanceBase {
 		// 	this.log('error', 'ERROR: Host not found')
 		// 	this.updateStatus(InstanceStatus.ConnectionFailure)
 		// } else {
-		this.log('error', `ERROR for ${context}: ${err?.message ?? err}`)
+		this.log('error', `ERROR for ${context}: ${err instanceof Error ? err.message : err}`)
 		// }
 	}
 }

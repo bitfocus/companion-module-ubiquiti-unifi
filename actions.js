@@ -15,7 +15,7 @@ export function getActionDefinitions(self) {
 					id: 'mac',
 					default: '',
 					allowCustom: true,
-					choices: self.switchMacAddressOptions,
+							choices: self.switchMacAddressOptions ?? [],
 				},
 				{
 					type: 'number',
@@ -106,8 +106,8 @@ export function getActionDefinitions(self) {
 					label: 'WiFi Network',
 					id: 'wifiNetwork',
 					default: '',
-					allowCustom: false,
-					choices: self.wifiNetworkOptions,
+					allowCustom: true,
+					choices: self.wifiNetworkOptions ?? [],
 				},
 				{
 					type: 'dropdown',
@@ -160,7 +160,7 @@ export function getActionDefinitions(self) {
 					let payload = {}
 					switch (action.options.action) {
 						case 'changeSSID': {
-							const newSsid = await self.parseVariablesInString(action.options.newSsid + '')
+							const newSsid = action.options.newSsid + ''
 							if (newSsid.length == 0) {
 								self.log('error', `SSID cannot be empty`)
 								return
@@ -173,7 +173,7 @@ export function getActionDefinitions(self) {
 							break
 						}
 						case 'changePassword': {
-							const newPassword = await self.parseVariablesInString(action.options.newPassword + '')
+							const newPassword = action.options.newPassword + ''
 							if (newPassword.length < 8) {
 								self.log('error', `Password must be at least 8 characters long`)
 								return
