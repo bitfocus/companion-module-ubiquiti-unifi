@@ -7,6 +7,9 @@ import { getActionDefinitions } from './actions.js'
 import { getConfigFields } from './config.js'
 import { UpgradeScripts } from './upgrades.js'
 
+/**
+ * @extends {InstanceBase<any, any>}
+ */
 export class UnifiInstance extends InstanceBase {
 	queue = new pQueue({
 		concurrency: 1,
@@ -16,14 +19,18 @@ export class UnifiInstance extends InstanceBase {
 
 	connectionCheckInterval = 10000 // Note: this must be more than the timeout used in node-unifi
 	/**
-	 * @type {NodeJS.Timer}
+	 * @type {NodeJS.Timeout | undefined}
 	 */
-	connectionCheckTimer
+	connectionCheckTimer = undefined
 
 	/**
 	 * @type {import('@companion-module/base').DropdownChoice[]}
 	 */
 	portProfileOptions = []
+	/**
+	 * @type {import('@companion-module/base').DropdownChoice[]}
+	 */
+	wifiNetworkOptions = []
 	/**
 	 * @type {import('@companion-module/base').DropdownChoice[]}
 	 */
@@ -33,6 +40,9 @@ export class UnifiInstance extends InstanceBase {
 		return getConfigFields()
 	}
 
+	/**
+	 * @param {any} config
+	 */
 	async init(config) {
 		this.config = config
 
@@ -46,7 +56,7 @@ export class UnifiInstance extends InstanceBase {
 			if (this.controller) {
 				if (this.loggedIn) {
 					// Arbitrary call to check authentication
-					this.controller._ensureLoggedIn().catch((e) => {
+					this.controller.getSelf().catch((e) => {
 						this.loggedIn = false
 
 						this.log('error', `Status check failed: ${e?.message ?? e}`)
@@ -74,12 +84,13 @@ export class UnifiInstance extends InstanceBase {
 
 				this.updateStatus(InstanceStatus.Ok)
 
-				this.#refreshActionInfo().catch(() => null)
+				this.refreshActionInfo().catch(() => null)
 			})
 			.catch((e) => {
 				this.loggedIn = false
 
-				// TODO - pass error message
+				this.log('error', `Login failed: ${e?.message ?? e}`)
+
 				this.updateStatus(InstanceStatus.ConnectionFailure)
 			})
 			.finally(() => {
@@ -87,7 +98,7 @@ export class UnifiInstance extends InstanceBase {
 			})
 	}
 
-	async #refreshActionInfo() {
+	async refreshActionInfo() {
 		if (!this.controller) return
 
 		try {
@@ -98,7 +109,7 @@ export class UnifiInstance extends InstanceBase {
 				label: profile.name,
 			}))
 		} catch (e) {
-			this.log('warn', `Failed to load port profile list: ${e?.message ?? e}`)
+			this.log('warn', `Failed to load port profile list: ${e instanceof Error ? e.message : e}`)
 		}
 
 		try {
@@ -109,13 +120,23 @@ export class UnifiInstance extends InstanceBase {
 				label: `${device.name} (${device.mac})`,
 			}))
 		} catch (e) {
-			this.log('warn', `Failed to load port profile list: ${e?.message ?? e}`)
+			this.log('warn', `Failed to load device list: ${e instanceof Error ? e.message : e}`)
+		}
+
+		try {
+			const wifiNetworks = await this.getWifiNetworks()
+			this.wifiNetworkOptions = (wifiNetworks ?? []).map((network) => ({
+				id: network.name,
+				label: network.name,
+			}))
+		} catch (e) {
+			this.log('warn', `Failed to load wifi network list: ${e instanceof Error ? e.message : e}`)
 		}
 
 		this.setActionDefinitions(getActionDefinitions(this))
 	}
 
-	async configUpdated(config) {
+	async configUpdated(config = {}) {
 		this.config = config
 
 		this.updateStatus(InstanceStatus.Connecting)
@@ -184,10 +205,10 @@ export class UnifiInstance extends InstanceBase {
 			if (!device.port_overrides || !device._id) throw new Error('Device invalid')
 
 			const deviceId = device._id
-			const portOverrides = device.port_overrides
+			const portOverrides = [...device.port_overrides]
 
 			// TODO - can this be more granular?
-			const selectedPort = portOverrides.find((port) => port.port_idx == port_idx)
+			const selectedPort = portOverrides.find((port) => port.port_idx === port_idx)
 			if (selectedPort) {
 				selectedPort.poe_mode = poe_mode
 			} else {
@@ -223,7 +244,7 @@ export class UnifiInstance extends InstanceBase {
 				'/api/s/<SITE>/rest/portconf/' + profileConfig._id,
 				// @ts-ignore
 				'PUT',
-				profileConfig
+				profileConfig,
 			)
 		} catch (e) {
 			this.handleErrors(e, `Change port profile POE mode ${profile_name}`)
@@ -231,7 +252,67 @@ export class UnifiInstance extends InstanceBase {
 	}
 
 	/**
-	 * @param {Error} err
+	 */
+	async getWifiNetworks() {
+		if (!this.controller) throw new Error('Not initialised')
+		if (!this.loggedIn) throw new Error('Not logged in')
+
+		try {
+			const wifiNetworks = await this.controller.getWLanSettings()
+
+			this.log('debug', 'Fetched wifi networks: ' + wifiNetworks.map((n) => n.name).join(', '))
+			//console.log('Wifi networks data: ' + JSON.stringify(wifiNetworks))
+			return wifiNetworks
+		} catch (e) {
+			this.handleErrors(e, `getWifiNetworks`)
+		}
+	}
+
+	/**
+	 * https://github.com/uchkunrakhimow/unifi-best-practices?tab=readme-ov-file#%EF%B8%8F-network-configuration
+	 * https://github.com/jens-maus/node-unifi/blob/master/unifi.js
+	 * @param {string} wifiNetworkName
+	 * @param {{name?:string,x_passphrase?:string}} updates
+	 */
+	async updateWifiNetwork(wifiNetworkName, updates) {
+		if (!this.controller) throw new Error('Not initialised')
+		if (!this.loggedIn) throw new Error('Not logged in')
+		try {
+			const wifiNetworks = await this.controller.getWLanSettings()
+			const wifiNetwork = wifiNetworks.find((n) => n.name == wifiNetworkName)
+			if (!wifiNetwork) throw new Error('WiFi Network not found')
+
+			this.log(
+				'debug',
+				`Updating WiFi Network ${wifiNetworkName} with ID ${wifiNetwork._id} with updates: ${JSON.stringify(updates)}`,
+			)
+			await this.controller.setWLanSettingsBase(wifiNetwork._id, updates)
+		} catch (e) {
+			this.handleErrors(e, `updateWifiNetwork ${wifiNetworkName}`)
+		}
+	}
+
+	/**
+	 * @param {string} wifiNetworkName
+	 */
+	async deleteWLan(wifiNetworkName) {
+		if (!this.controller) throw new Error('Not initialised')
+		if (!this.loggedIn) throw new Error('Not logged in')
+		try {
+			const wifiNetworks = await this.controller.getWLanSettings()
+			const wifiNetwork = wifiNetworks.find((n) => n.name == wifiNetworkName)
+			if (!wifiNetwork) throw new Error('WiFi Network not found')
+
+			this.log('debug', `Deleting WiFi Network ${wifiNetworkName} with ID ${wifiNetwork._id}`)
+			//await this.controller.deleteWLan(wifiNetwork._id) // seems to have mixed up method and payload
+			await this.controller.customApiRequest('/api/s/<SITE>/rest/wlanconf/' + wifiNetwork._id.trim(), 'DELETE')
+		} catch (e) {
+			this.handleErrors(e, `deleteWLan ${wifiNetworkName}`)
+		}
+	}
+
+	/**
+	 * @param {unknown} err
 	 * @param {string} context
 	 */
 	handleErrors(err, context) {
@@ -252,7 +333,7 @@ export class UnifiInstance extends InstanceBase {
 		// 	this.log('error', 'ERROR: Host not found')
 		// 	this.updateStatus(InstanceStatus.ConnectionFailure)
 		// } else {
-		this.log('error', `ERROR for ${context}: ${err?.message ?? err}`)
+		this.log('error', `ERROR for ${context}: ${err instanceof Error ? err.message : err}`)
 		// }
 	}
 }
