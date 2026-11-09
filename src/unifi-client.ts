@@ -88,17 +88,22 @@ const MAX_ERROR_DETAIL_LENGTH = 200
  */
 export function httpErrorMessage(status: number, body: string): string {
 	let detail = ''
+	let requestId = ''
 	try {
-		const parsed = JSON.parse(body) as { message?: unknown; meta?: { msg?: unknown } }
+		const parsed = JSON.parse(body) as { message?: unknown; meta?: { msg?: unknown }; requestId?: unknown }
 		const candidate = parsed.message ?? parsed.meta?.msg
 		if (typeof candidate === 'string') detail = candidate
+		// For HTTP 500 the console logs the error under this ID, so it is needed for any further analysis.
+		if (typeof parsed.requestId === 'string' && /^[0-9a-f-]{8,64}$/i.test(parsed.requestId)) {
+			requestId = parsed.requestId
+		}
 	} catch {
 		// not JSON
 	}
 	// eslint-disable-next-line no-control-regex
 	detail = detail.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim()
 	if (detail.length > MAX_ERROR_DETAIL_LENGTH) detail = `${detail.slice(0, MAX_ERROR_DETAIL_LENGTH)}...`
-	return `HTTP ${status}${detail ? `: ${detail}` : ''}`
+	return `HTTP ${status}${detail ? `: ${detail}` : ''}${requestId ? ` (requestId ${requestId})` : ''}`
 }
 
 function errorMessage(err: unknown): string {
@@ -122,7 +127,10 @@ async function request<T>(config: UnifiClientConfig, path: string): Promise<Unif
 
 		if (response.status === 401 || response.status === 403) return { outcome: 'unauthorized' }
 		if (response.status === 404) return { outcome: 'not-found' }
-		if (!response.ok) return { outcome: 'error', message: `HTTP ${response.status}` }
+		if (!response.ok) {
+			const body = await response.text().catch(() => '')
+			return { outcome: 'error', message: httpErrorMessage(response.status, body) }
+		}
 
 		const data = (await response.json()) as T
 		return { outcome: 'ok', data }

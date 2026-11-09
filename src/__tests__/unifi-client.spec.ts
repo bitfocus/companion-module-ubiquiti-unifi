@@ -53,6 +53,13 @@ test('pagination returns an error instead of truncated data', async () => {
 test('http error messages never contain HTML pages and are capped', () => {
 	assert.equal(httpErrorMessage(502, '<html><body>Bad gateway</body></html>'), 'HTTP 502')
 	assert.equal(httpErrorMessage(400, JSON.stringify({ message: 'Invalid port' })), 'HTTP 400: Invalid port')
+	assert.equal(
+		httpErrorMessage(
+			500,
+			JSON.stringify({ message: 'Internal Server Error', requestId: '3fa85f64-5717-4562-b3fc-2c963f66afa6' }),
+		),
+		'HTTP 500: Internal Server Error (requestId 3fa85f64-5717-4562-b3fc-2c963f66afa6)',
+	)
 	const long = httpErrorMessage(400, JSON.stringify({ message: 'x'.repeat(1000) }))
 	assert.ok(long.length < 220)
 })
