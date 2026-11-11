@@ -1,6 +1,12 @@
 import { afterEach, test } from 'node:test'
 import assert from 'node:assert/strict'
-import { httpErrorMessage, listDevices, type UnifiClientConfig } from '../unifi-client.js'
+import {
+	httpErrorMessage,
+	listDevices,
+	partitionValidDevices,
+	type UnifiClientConfig,
+	type UnifiDevice,
+} from '../unifi-client.js'
 
 const config: UnifiClientConfig = { host: 'console', port: 443, siteId: 'site', apiKey: 'key', verifyTls: false }
 const originalFetch = globalThis.fetch
@@ -62,4 +68,21 @@ test('http error messages never contain HTML pages and are capped', () => {
 	)
 	const long = httpErrorMessage(400, JSON.stringify({ message: 'x'.repeat(1000) }))
 	assert.ok(long.length < 220)
+})
+
+test('devices without a usable ID or with a duplicate ID are skipped', () => {
+	const device = (id: unknown, name: string): UnifiDevice =>
+		({ id, name, model: 'USW', macAddress: '', state: 'ONLINE', features: [], interfaces: [] }) as UnifiDevice
+	const result = partitionValidDevices([
+		device('a', 'One'),
+		device(undefined, 'Broken'),
+		device('', 'Empty'),
+		device('a', 'Duplicate'),
+		device('b', 'Two'),
+	])
+	assert.deepEqual(
+		result.devices.map((item) => item.id),
+		['a', 'b'],
+	)
+	assert.deepEqual(result.skipped, ['Broken (USW)', 'Empty (USW)', 'Duplicate (USW)'])
 })

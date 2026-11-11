@@ -25,7 +25,8 @@ accounts, and the documented API is expected to stay more stable across firmware
 - **Switchport: PoE power cycle** — briefly switches a port off and on again (official API). This is the only port
   action the official API offers. Select the port with the **Switch** and **Port** dropdowns; the port dropdown
   only shows the ports that actually exist on the selected switch.
-- **Switchport: Set PoE on/off (legacy)** — only available if enabled in the configuration. Switches PoE on a port
+- **Switchport: Set PoE on/off (legacy)** — only works if enabled in the configuration (while disabled, the action is
+  shown as _disabled in config_ and only logs a hint, so existing buttons are kept). Switches PoE on a port
   on or off permanently, using the same switch/port selection as above. The official API offers **no** write
   access for this (neither directly nor via port profiles), so this action has to use the old private controller
   API and may break without notice after firmware updates.
@@ -81,7 +82,8 @@ Version 3.0 replaces the old username/password login (node-unifi) with the offic
 - **An API key is required.** After the upgrade, create an API key on the console and enter it in the connection
   settings. Host, port and site are taken over.
 - The old username and password are moved to the legacy fields. If the old **Switchport: Set POE mode** action was
-  in use, "persistent PoE on/off" is enabled automatically, so those buttons keep working.
+  in use, "persistent PoE on/off" is enabled automatically, so those buttons keep working. If the migrated buttons
+  show the action as _disabled in config_, enable "persistent PoE on/off" and enter the local admin account.
 - **Switchport: Power Cycle** becomes **Switchport: PoE power cycle**, **Switchport: Set POE mode** becomes
   **Switchport: Set PoE on/off (legacy)**. Migrated actions still reference the switch by MAC address, which is
   resolved to the device automatically; re-selecting the switch in the dropdown is optional. The mode

@@ -16,6 +16,7 @@ import {
 	getApplicationInfo,
 	listSites,
 	listDevices,
+	partitionValidDevices,
 	listClients,
 	getDevice,
 	restartDevice as restartDeviceRequest,
@@ -56,6 +57,8 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	/** Number of currently connected clients per uplink device (key: device ID), e.g. clients per access point. */
 	private clientCountByUplink: Map<string, number> = new Map()
 	private deviceSlugs: Map<string, string> = new Map()
+	/** Devices from the last device list that had no usable ID and were skipped (see partitionValidDevices). */
+	private skippedDevices: string[] = []
 	applicationVersion = ''
 	lastActionResult = ''
 	/** Resolved site UUID (the Integration API only accepts UUIDs, no "default" alias like the old API). */
@@ -287,6 +290,7 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 		this.devices = []
 		this.deviceDetails = new Map()
 		this.deviceSlugs = new Map()
+		this.skippedDevices = []
 		this.knownClients = new Map()
 		this.connectedClientMacs = new Set()
 		this.clientCountByUplink = new Map()
@@ -467,7 +471,9 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	}
 
 	/** Stores the device list; returns whether devices were added, removed or renamed. */
-	private setDevices(devices: UnifiDevice[]): boolean {
+	private setDevices(rawDevices: UnifiDevice[]): boolean {
+		const { devices, skipped } = partitionValidDevices(rawDevices)
+		this.skippedDevices = skipped
 		const signature = (list: UnifiDevice[]): string =>
 			list
 				.map((device) => `${device.id}|${device.name}|${device.features.join(',')}`)
@@ -486,7 +492,15 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 		this.updateVariableDefinitions()
 	}
 
-	private applyPollResult(warnings: string[]): void {
+	private applyPollResult(pollWarnings: string[]): void {
+		const warnings =
+			this.skippedDevices.length > 0
+				? [
+						`Skipped ${this.skippedDevices.length} device(s) without a valid ID from the console: ` +
+							`${this.skippedDevices.join(', ')}. Updating UniFi Network usually fixes this.`,
+						...pollWarnings,
+					]
+				: pollWarnings
 		if (warnings.length > 0) {
 			this.updateStatus(InstanceStatus.UnknownWarning, warnings.join(' '))
 			for (const warning of warnings) this.log('warn', warning)
@@ -634,6 +648,13 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 
 	/** Legacy path: persistent PoE on/off via the private controller API (see unifi-legacy-client.ts). */
 	async setPortPoePersistent(deviceId: string, portIdx: number, enabled: boolean): Promise<void> {
+		if (!this.config.legacyUsername || !this.secrets.legacyPassword) {
+			this.log(
+				'warn',
+				'setPortPoePersistent: legacy username/password missing - enter a local admin account in the connection settings.',
+			)
+			return
+		}
 		const device = this.devices.find((candidate) => candidate.id === deviceId)
 		if (!device) {
 			this.log('warn', `setPortPoePersistent: device ${deviceId} not found in cache - refresh the device list first.`)

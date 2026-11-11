@@ -213,6 +213,27 @@ export async function listDevices(config: UnifiClientConfig): Promise<UnifiResul
 }
 
 /**
+ * Drops device entries without a usable ID (and duplicate IDs). Some console versions (seen with UniFi Network
+ * 10.6) return broken entries for single devices; without an ID they would end up as `undefined` in dropdowns,
+ * variable names and detail requests. Returns the usable devices and a short description of every skipped entry.
+ */
+export function partitionValidDevices(devices: UnifiDevice[]): { devices: UnifiDevice[]; skipped: string[] } {
+	const valid: UnifiDevice[] = []
+	const skipped: string[] = []
+	const seen = new Set<string>()
+	for (const device of devices) {
+		const id = (device as { id?: unknown }).id
+		if (typeof id !== 'string' || id.trim() === '' || seen.has(id)) {
+			skipped.push(`${device.name || device.macAddress || 'unknown device'}${device.model ? ` (${device.model})` : ''}`)
+			continue
+		}
+		seen.add(id)
+		valid.push(device)
+	}
+	return { devices: valid, skipped }
+}
+
+/**
  * Returns all clients currently connected to the network (computers, phones, AV devices, ...).
  * Unlike devices there is no explicit "state" field: a client that is not connected (anymore) is simply
  * missing from the list instead of being marked "OFFLINE".
