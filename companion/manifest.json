@@ -1,8 +1,10 @@
 {
+	"$schema": "../node_modules/@companion-module/base/assets/manifest.schema.json",
+	"type": "connection",
 	"id": "ubiquiti-unifi",
 	"name": "ubiquiti-unifi",
 	"shortname": "unifi",
-	"description": "Module to control UniFi network equipment",
+	"description": "Control UniFi network equipment via the official UniFi Network Integration API",
 	"version": "0.0.0",
 	"license": "MIT",
 	"repository": "git+https://github.com/bitfocus/companion-module-ubiquiti-unifi.git",
@@ -15,16 +17,21 @@
 		{
 			"name": "Julian Waller",
 			"email": "git@julusian.co.uk"
+		},
+		{
+			"name": "meyer.productions",
+			"github": "fabianmime",
+			"url": "https://meyer.productions"
 		}
 	],
 	"legacyIds": ["unifi"],
 	"runtime": {
-		"type": "node18",
+		"type": "node22",
 		"api": "nodejs-ipc",
 		"apiVersion": "0.0.0",
-		"entrypoint": "../main.js"
+		"entrypoint": "../dist/main.js"
 	},
 	"manufacturer": "Ubiquiti",
-	"products": ["Unifi", "USW"],
-	"keywords": ["Networking"]
+	"products": ["UniFi Network", "UniFi Switch", "UniFi Dream Machine"],
+	"keywords": ["Networking", "PoE", "Switch"]
 }
